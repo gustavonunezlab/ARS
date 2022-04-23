@@ -7,14 +7,21 @@
  * 4. Copy the config object snippet, then add it here.
  */
 const config = {
-  /* TODO: ADD YOUR FIREBASE CONFIGURATION OBJECT HERE */
+
+    apiKey: "AIzaSyBaSDVfXVUzJTKlQ9MCGmvxRKZyjdrMP_8",
+    authDomain: "friendlychat-bcd8f.firebaseapp.com",
+    databaseURL: "https://friendlychat-bcd8f-default-rtdb.firebaseio.com",
+    projectId: "friendlychat-bcd8f",
+    storageBucket: "friendlychat-bcd8f.appspot.com",
+    messagingSenderId: "575578092797",
+    appId: "1:575578092797:web:650fc4e9b57b676f137a94"
 };
 
 export function getFirebaseConfig() {
-  if (!config || !config.apiKey) {
-    throw new Error('No Firebase configuration object provided.' + '\n' +
-    'Add your web app\'s configuration object to firebase-config.js');
-  } else {
-    return config;
-  }
+    if (!config || !config.apiKey) {
+        throw new Error('No Firebase configuration object provided.' + '\n' +
+            'Add your web app\'s configuration object to firebase-config.js');
+    } else {
+        return config;
+    }
 }

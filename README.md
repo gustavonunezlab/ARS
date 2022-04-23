@@ -14,3 +14,13 @@ Please read and follow the steps in the [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## License
 See [LICENSE](LICENSE)
+
+Para ejecutar:
+	En el directorio web-start ejecute el comando 
+	
+	firebase serve --only hosting
+
+Podrá ingresar ahora a la URL
+	http://localhost:5000
+
+
