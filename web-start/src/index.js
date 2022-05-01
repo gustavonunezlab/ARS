@@ -35,15 +35,18 @@ import {
     setDoc,
     updateDoc,
     doc,
+    getDoc,
     serverTimestamp,
     where,
     getDocs,
+    deleteDoc,
 } from 'firebase/firestore';
 import {
     getStorage,
     ref,
     uploadBytesResumable,
     getDownloadURL,
+    deleteObject,
 } from 'firebase/storage';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { getPerformance } from 'firebase/performance';
@@ -105,9 +108,7 @@ async function saveMessage(messageText) {
     }
 }
 
-/////////////////////////////////////////////////////////////////////////////////
-
-var auxTimeStamp;
+var lastTimeStamp;
 // Loads chat messages history and listens for upcoming ones.
 function loadMessages() {
     // Create the query to load the last 12 messages and listen for new ones.
@@ -121,30 +122,51 @@ function loadMessages() {
             if (change.type === 'removed') {
                 deleteMessage(change.doc.id);
             } else {
-                var message = change.doc.data();
-                auxTimeStamp = message.timestamp;
 
+                var message = change.doc.data();
+                setLastTimestamp(message.timestamp);
                 displayMessage(change.doc.id, message.timestamp, message.name,
                     message.text, message.profilePicUrl, message.imageUrl);
-                console.log(auxTimeStamp);
+
             }
         });
     });
 }
 
+function setLastTimestamp(aTimeStamp) {
+    lastTimeStamp = aTimeStamp;
+}
+
 async function loadMoreMessages() {
 
-    const recentMessagesQuery = query(collection(getFirestore(), 'messages'), where('timestamp', "<", auxTimeStamp), orderBy('timestamp', 'desc'), limit(5));
+    const lastTmStmp = lastTimeStamp;
+    const recentMessagesQuery = query(collection(getFirestore(), 'messages'), where('timestamp', "<", lastTmStmp), orderBy('timestamp', 'desc'), limit(5));
+
 
     const querySnapshot = await getDocs(recentMessagesQuery);
     querySnapshot.forEach((doc) => {
         // doc.data() is never undefined for query doc snapshots
 
         var message = doc.data();
+        setLastTimestamp(message.timestamp);
         displayMessage(doc.id, message.timestamp, message.name,
             message.text, message.profilePicUrl, message.imageUrl);
-        auxTimeStamp = doc.data().timestamp;
-        console.log(auxTimeStamp);
+    });
+
+}
+
+function deleteAllMessages() {
+    var deleteAll = confirm("¿Seguro desea eliminar todos los mensajes?");
+    if (deleteAll) {
+        deleteAllMsg();
+    }
+}
+
+async function deleteAllMsg() {
+    const allMessagesQuery = query(collection(getFirestore(), 'messages'));
+    const querySnapshot = await getDocs(allMessagesQuery);
+    querySnapshot.forEach((doc) => {
+        deleteMessage(doc.id);
     });
 
 }
@@ -321,6 +343,7 @@ var MESSAGE_TEMPLATE =
     '<div class="spacing"><div class="pic"></div></div>' +
     '<div class="message"></div>' +
     '<div class="name"></div>' +
+    '<div class="deleteMessageClass"></div>' +
     '</div>';
 
 // Adds a size to Google Profile pics URLs.
@@ -335,11 +358,37 @@ function addSizeToGoogleProfilePic(url) {
 var LOADING_IMAGE_URL = 'https://www.google.com/images/spin-32.gif?a';
 
 // Delete a Message from the UI.
-function deleteMessage(id) {
+async function deleteMessage(id) {
     var div = document.getElementById(id);
     // If an element for that message exists we delete it.
     if (div) {
+
         div.parentNode.removeChild(div);
+        try {
+
+            const docRef = doc(getFirestore(), 'messages', id);
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.data().storageUri) {
+                const storageUri = docSnap.data().storageUri;
+                const desertRef = ref(getStorage(), storageUri);
+
+                // Delete the file
+                deleteObject(desertRef).then(() => {
+                    // File deleted successfully
+                }).catch((error) => {
+                    // Uh-oh, an error occurred!
+                });
+
+            }
+
+            await deleteDoc(doc(getFirestore(), 'messages', id));
+        } catch (error) {
+            console.error('Error deleting message to Firebase Database', error);
+        }
+
+
+
     }
 }
 
@@ -397,6 +446,8 @@ function displayMessage(id, timestamp, name, text, picUrl, imageUrl) {
     div.querySelector('.name').textContent = name;
     var messageElement = div.querySelector('.message');
 
+    var deleteMesssage = div.querySelector('.deleteMessageClass');
+
     if (text) {
         // If the message is text.
         messageElement.textContent = text;
@@ -416,8 +467,12 @@ function displayMessage(id, timestamp, name, text, picUrl, imageUrl) {
     setTimeout(function() {
         div.classList.add('visible');
     }, 1);
+
     messageListElement.scrollTop = messageListElement.scrollHeight;
     messageInputElement.focus();
+
+    deleteMesssage.innerHTML = '<button class="deleteButton" data="' + id + '">Eliminar mensaje</button>';
+
 }
 
 // Enables or disables the submit button depending on the values of the input
@@ -446,6 +501,7 @@ var signOutButtonElement = document.getElementById('sign-out');
 var signInSnackbarElement = document.getElementById('must-signin-snackbar');
 
 var loadMoreMessagesButtonElement = document.getElementById('loadMoreMessages');
+var deleteAllMessagesButtonElement = document.getElementById('deleteAllMessages');
 
 // Saves message on form submit.
 messageFormElement.addEventListener('submit', onMessageFormSubmit);
@@ -454,10 +510,22 @@ signInButtonElement.addEventListener('click', signIn);
 signInGoogleButtonElement.addEventListener('click', signInGoogle);
 
 loadMoreMessagesButtonElement.addEventListener('click', loadMoreMessages);
+deleteAllMessagesButtonElement.addEventListener('click', deleteAllMessages);
 
 // Toggle for the button.
 messageInputElement.addEventListener('keyup', toggleButton);
 messageInputElement.addEventListener('change', toggleButton);
+
+messageListElement.addEventListener('click', event => {
+    event.preventDefault();
+    if (event.target.classList.contains('deleteButton')) {
+        var idMsg = event.target.getAttribute("data");
+
+        if (checkSignedInWithMessage()) {
+            deleteMessage(idMsg);
+        }
+    }
+});
 
 // Events for image upload.
 imageButtonElement.addEventListener('click', function(e) {
